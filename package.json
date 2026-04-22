@@ -14,9 +14,6 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.88.0",
-    "cors": "^2.8.5",
-    "dotenv": "^16.4.5",
-    "express": "^4.21.1",
     "@hello-pangea/dnd": "^18.0.1",
     "@hookform/resolvers": "^3.10.0",
     "@iconify/react": "^6.0.2",
@@ -53,8 +50,11 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "cmdk": "^1.1.1",
+    "cors": "^2.8.5",
     "date-fns": "^3.6.0",
+    "dotenv": "^16.4.5",
     "embla-carousel-react": "^8.6.0",
+    "express": "^4.21.1",
     "framer-motion": "^12.38.0",
     "input-otp": "^1.4.2",
     "lucide-react": "^0.462.0",
@@ -70,8 +70,10 @@
     "sonner": "^1.7.4",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
+    "uuid": "^14.0.0",
     "vaul": "^0.9.9",
     "wouter": "^3.9.0",
+    "ws": "^8.20.0",
     "zod": "^3.25.76"
   },
   "devDependencies": {
