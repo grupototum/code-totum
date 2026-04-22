@@ -12,7 +12,7 @@ const app = express();
 const server = createServer(app);
 const PORT = 3000;
 
-const OPENCODE_URL = process.env.OPENCODE_SERVER_URL || 'http://localhost:8080';
+const OPENCODE_URL = process.env.OPENCODE_SERVER_URL || 'http://localhost:8090';
 const OPENCODE_WS  = OPENCODE_URL.replace('http', 'ws');
 
 // ── Sessões em memória ──────────────────────────────────────────
