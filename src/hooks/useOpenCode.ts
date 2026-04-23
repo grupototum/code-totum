@@ -24,8 +24,8 @@ interface UseOpenCodeOptions {
   context?: string;
 }
 
-const SERVER_URL = 'http://localhost:3005';
-const WS_URL = 'ws://localhost:3005';
+const SERVER_URL = '';
+const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 
 export function useOpenCode(options: UseOpenCodeOptions = {}) {
   const { model = 'claude-3-5-sonnet-20241022', context = '' } = options;

@@ -13,7 +13,7 @@ interface RetrieveOptions {
   limit?: number;
 }
 
-const SERVER_URL = 'http://localhost:3005';
+const SERVER_URL = '';
 
 export function useAlexandria() {
   const [documents, setDocuments] = useState<RagDocument[]>([]);
