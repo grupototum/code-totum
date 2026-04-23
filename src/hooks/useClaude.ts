@@ -34,6 +34,7 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ model: ollamaModel, prompt, stream: false }),
+        signal: AbortSignal.timeout(60000),
       });
 
       if (!response.ok) {
@@ -42,7 +43,8 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
 
       const text = await response.text();
       const data = JSON.parse(text);
-      const assistantMessage = data.response || 'Sem resposta do modelo.';
+      if (!data.response) throw new Error(data.error || 'Sem resposta do modelo.');
+      const assistantMessage = data.response;
 
       setMessages([...newMessages, { role: 'assistant', content: assistantMessage }]);
     } catch (err) {

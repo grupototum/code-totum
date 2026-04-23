@@ -25,7 +25,7 @@ interface UseOpenCodeOptions {
 }
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
-const WS_MAX_RETRIES = 2; // Após 2 falhas, assume modo Ollama
+const WS_MAX_RETRIES = 0; // Pula WS, usa HTTP direto (WS instável pelo Cloudflare)
 
 export function useOpenCode(options: UseOpenCodeOptions = {}) {
   const { model = 'claude-3-5-sonnet-20241022', context = '' } = options;
@@ -180,8 +180,9 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
         context,
       }));
     } else {
-      // Fallback via Ollama quando WS não disponível
+      // HTTP streaming via Ollama
       setStatus('thinking');
+      const assistantId = (Date.now() + 1).toString();
       try {
         const historyText = historyForApi.slice(-4).map(m =>
           `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`
@@ -191,21 +192,57 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
         const response = await fetch('/api/ollama/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ model: 'mistral', prompt, stream: false }),
+          body: JSON.stringify({ model: 'mistral', prompt, stream: true }),
+          signal: AbortSignal.timeout(120000),
         });
-        const text = await response.text();
-        const data = JSON.parse(text);
-        const replyContent = data.response || data.error || 'Ollama offline. Verifique o serviço na VPS.';
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now().toString(), role: 'assistant', content: replyContent, type: 'text', timestamp: new Date() },
-        ]);
+
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+
+        // Cria mensagem vazia e preenche com stream
+        setMessages(prev => [...prev, {
+          id: assistantId, role: 'assistant', content: '', type: 'text', timestamp: new Date(),
+        }]);
+        setStatus('executing');
+
+        const reader = response.body!.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
+        let fullContent = '';
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop()!;
+          for (const line of lines) {
+            if (!line.trim()) continue;
+            try {
+              const parsed = JSON.parse(line);
+              if (parsed.response) {
+                fullContent += parsed.response;
+                setMessages(prev => {
+                  const updated = [...prev];
+                  const last = updated[updated.length - 1];
+                  if (last?.id === assistantId) {
+                    updated[updated.length - 1] = { ...last, content: fullContent };
+                  }
+                  return updated;
+                });
+              }
+            } catch {}
+          }
+        }
+        if (!fullContent) throw new Error('Sem resposta do modelo.');
         setStatus('idle');
       } catch (err) {
-        setMessages(prev => [
-          ...prev,
-          { id: Date.now().toString(), role: 'assistant', content: 'Sem conexão com o servidor.', type: 'text', timestamp: new Date() },
-        ]);
+        setMessages(prev => {
+          const last = prev[prev.length - 1];
+          if (last?.id === assistantId) {
+            return [...prev.slice(0, -1), { ...last, content: 'Ollama offline ou sem resposta.' }];
+          }
+          return [...prev, { id: assistantId, role: 'assistant', content: 'Sem conexão com o servidor.', type: 'text', timestamp: new Date() }];
+        });
         setStatus('error');
       }
     }
