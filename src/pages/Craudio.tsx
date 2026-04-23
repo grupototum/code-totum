@@ -14,8 +14,18 @@ interface OllamaModel {
   size: number;
 }
 
+const STORAGE_KEY = 'craudio-history';
+
+function loadHistory(): Message[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw).map((m: Message) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch { return []; }
+}
+
 export default function Craudio() {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(loadHistory);
   const [inputValue, setInputValue] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [models, setModels] = useState<string[]>([]);
@@ -26,6 +36,11 @@ export default function Craudio() {
 
   // Proxy URL — sempre relativo ao servidor
   const ollamaProxy = '/api/ollama';
+
+  // Persistir histórico no localStorage
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
 
   // Check Ollama health and load models
   useEffect(() => {
@@ -193,6 +208,14 @@ export default function Craudio() {
                 </option>
               ))}
             </select>
+            {messages.length > 0 && (
+              <button
+                onClick={() => { setMessages([]); localStorage.removeItem(STORAGE_KEY); }}
+                className="ml-auto text-xs text-gray-500 hover:text-red-400 transition px-2 py-1 rounded border border-white/10 hover:border-red-500/30"
+              >
+                Limpar histórico
+              </button>
+            )}
           </div>
         )}
 
