@@ -12,6 +12,7 @@ import { StatusBar } from '@/components/agent/StatusBar';
 import { FileExplorer } from '@/components/agent/FileExplorer';
 import { DiffViewer } from '@/components/agent/DiffViewer';
 import { PlanView } from '@/components/agent/PlanView';
+import { AppSidebar } from '@/components/agent/AppSidebar';
 import { Link } from 'wouter';
 import { cn } from '@/lib/utils';
 
@@ -22,6 +23,7 @@ export default function TotumAgent() {
   const [terminalLogs, setTerminalLogs] = useState<TerminalLog[]>([]);
   const [sessionStart] = useState(Date.now());
   const [sessionDuration, setSessionDuration] = useState('00:00');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [leftOpen, setLeftOpen] = useState(true);
   const [rightOpen, setRightOpen] = useState(true);
   const [rightTab, setRightTab] = useState<RightPanel>('plan');
@@ -80,7 +82,13 @@ export default function TotumAgent() {
   }, [agent, alexandria, addLog]);
 
   return (
-    <div className="flex flex-col h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
+    <div className="flex h-screen bg-zinc-950 text-zinc-100 overflow-hidden">
+
+      {/* ── App Sidebar ───────────────────────────────── */}
+      <AppSidebar collapsed={sidebarCollapsed} onToggle={() => setSidebarCollapsed(o => !o)} />
+
+      {/* ── Main area ─────────────────────────────────── */}
+      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
 
       {/* ── Header ────────────────────────────────────── */}
       <header className="flex items-center gap-2 px-3 py-2 border-b border-zinc-800 bg-zinc-900/80 backdrop-blur shrink-0">
@@ -273,6 +281,8 @@ export default function TotumAgent() {
         sessionDuration={sessionDuration}
         messageCount={agent.messages.filter(m => m.role === 'user').length}
       />
+
+      </div>{/* fim main area */}
     </div>
   );
 }
