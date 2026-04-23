@@ -21,33 +21,19 @@ export default function Craudio() {
   const [models, setModels] = useState<string[]>([]);
   const [selectedModel, setSelectedModel] = useState('mistral');
   const [ollamaOnline, setOllamaOnline] = useState(false);
-  const [ollamaUrl, setOllamaUrl] = useState('http://localhost:11434');
   const [sessionDuration, setSessionDuration] = useState('00:00');
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
-  // Load config and check Ollama
-  useEffect(() => {
-    const stored = localStorage.getItem('totum-api-keys');
-    if (stored) {
-      try {
-        const config = JSON.parse(stored);
-        setOllamaUrl(config.ollamaUrl || 'http://localhost:11434');
-      } catch (e) {
-        console.error('Failed to load config:', e);
-      }
-    }
-  }, []);
+  // Proxy URL — sempre relativo ao servidor
+  const ollamaProxy = '/api/ollama';
 
   // Check Ollama health and load models
   useEffect(() => {
     const checkOllama = async () => {
       try {
-        const response = await fetch(`${ollamaUrl}/api/tags`, {
+        const response = await fetch(`${ollamaProxy}/tags`, {
           method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'ngrok-skip-browser-warning': 'true',
-          },
+          headers: { 'Content-Type': 'application/json' },
         });
 
         if (!response.ok) throw new Error('Ollama offline');
@@ -72,7 +58,7 @@ export default function Craudio() {
     checkOllama();
     const interval = setInterval(checkOllama, 10000); // Check every 10s
     return () => clearInterval(interval);
-  }, [ollamaUrl]);
+  }, []);
 
   // Auto-scroll to latest message
   useEffect(() => {
@@ -106,12 +92,9 @@ export default function Craudio() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${ollamaUrl}/api/chat`, {
+      const response = await fetch(`${ollamaProxy}/chat`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'ngrok-skip-browser-warning': 'true',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           model: selectedModel,
           messages: [
@@ -229,7 +212,7 @@ export default function Craudio() {
                   <span className="font-medium">Ollama Offline</span>
                 </div>
                 <p className="text-sm text-red-200">
-                  Verifique se o Ollama está rodando em {ollamaUrl} ou configure a URL nas Configurações.
+                  Ollama não está acessível no servidor. Verifique se o serviço está rodando na VPS.
                 </p>
               </div>
             )}
@@ -329,8 +312,8 @@ export default function Craudio() {
               <span className="text-white text-xs truncate">{selectedModel}</span>
             </div>
             <div className="flex items-center justify-between">
-              <span className="text-gray-400">URL</span>
-              <span className="text-white text-xs truncate">{ollamaUrl}</span>
+              <span className="text-gray-400">Endpoint</span>
+              <span className="text-white text-xs truncate">/api/ollama</span>
             </div>
           </div>
         </div>
