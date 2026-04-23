@@ -92,21 +92,16 @@ export default function Craudio() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${ollamaProxy}/chat`, {
+      // Constrói prompt com histórico
+      const historyText = messages.slice(-6).map((m) =>
+        `${m.role === 'user' ? 'Usuário' : 'Cráudio'}: ${m.content}`
+      ).join('\n');
+      const prompt = `Você é Cráudio Codete, assistente dev: React/TS/Node/IA. PT-BR. Direto.\n\n${historyText}\nUsuário: ${inputValue}\nCráudio:`;
+
+      const response = await fetch(`${ollamaProxy}/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: selectedModel,
-          messages: [
-            {
-              role: 'system',
-              content: 'Você é Cráudio Codete, um assistente de desenvolvimento especializado em React, TypeScript, Node.js e IA. Responda em português brasileiro. Seja objetivo.',
-            },
-            ...messages.map((m) => ({ role: m.role, content: m.content })),
-            { role: 'user', content: inputValue },
-          ],
-          stream: true,
-        }),
+        body: JSON.stringify({ model: selectedModel, prompt, stream: true }),
       });
 
       if (!response.ok) throw new Error('API error');
@@ -135,15 +130,15 @@ export default function Craudio() {
           if (line.trim()) {
             try {
               const json = JSON.parse(line);
-              if (json.message?.content) {
-                assistantContent += json.message.content;
+              if (json.response) {
+                assistantContent += json.response;
                 setMessages((prev) => [
                   ...prev.slice(0, -1),
                   { ...prev[prev.length - 1], content: assistantContent },
                 ]);
               }
             } catch (e) {
-              // Ignore parse errors
+              // ignore
             }
           }
         }

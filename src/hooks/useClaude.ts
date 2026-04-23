@@ -24,26 +24,25 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
       const newMessages = [...messages, { role: 'user' as const, content: userMessage }];
       setMessages(newMessages);
 
-      const response = await fetch('/api/ollama/chat', {
+      // Constrói prompt com histórico simplificado
+      const historyText = newMessages.slice(-6).map(m =>
+        `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`
+      ).join('\n');
+      const prompt = `Assistente código: React/TS/Node/IA. PT-BR. Direto.\n\n${historyText}\nAssistente:`;
+
+      const response = await fetch('/api/ollama/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          model: ollamaModel,
-          messages: [
-            { role: 'system', content: 'Assistente código especialista: React, TypeScript, Node.js. PT-BR. Respostas diretas e técnicas.' },
-            ...newMessages,
-          ],
-          stream: false,
-        }),
+        body: JSON.stringify({ model: ollamaModel, prompt, stream: false }),
       });
 
       if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        throw new Error(err.error || `Erro ${response.status}`);
+        throw new Error(`Erro ${response.status}`);
       }
 
-      const data = await response.json();
-      const assistantMessage = data.message?.content || 'Sem resposta do modelo.';
+      const text = await response.text();
+      const data = JSON.parse(text);
+      const assistantMessage = data.response || 'Sem resposta do modelo.';
 
       setMessages([...newMessages, { role: 'assistant', content: assistantMessage }]);
     } catch (err) {

@@ -150,8 +150,15 @@ app.post('/api/ollama/generate', async (req, res) => {
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(120000),
     });
-    const data = await r.json();
-    res.status(r.status).json(data);
+    res.status(r.status);
+    // Pipe direto — suporta stream:true e stream:false
+    const reader = r.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
   } catch (err) {
     res.status(503).json({ error: 'Ollama offline', detail: err.message });
   }
@@ -165,8 +172,15 @@ app.post('/api/ollama/chat', async (req, res) => {
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(120000),
     });
-    const data = await r.json();
-    res.status(r.status).json(data);
+    res.status(r.status);
+    // Pipe direto — suporta stream:true (Cráudio) e stream:false (useClaude/useOpenCode)
+    const reader = r.body.getReader();
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      res.write(value);
+    }
+    res.end();
   } catch (err) {
     res.status(503).json({ error: 'Ollama offline', detail: err.message });
   }
@@ -316,20 +330,44 @@ async function handleClaudeFallback(ws, msg) {
 async function handleOllamaFallback(ws, messages, systemPrompt) {
   ws.send(JSON.stringify({ type: 'thinking' }));
   try {
-    const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+    const historyText = messages.slice(-4).map(m =>
+      `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`
+    ).join('\n');
+    const lastUser = messages.filter(m => m.role === 'user').pop()?.content || '';
+    const prompt = `${systemPrompt}\n\n${historyText}\nAssistente:`;
+
+    const response = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         model: process.env.VITE_OLLAMA_MODEL || 'mistral',
-        messages: [{ role: 'system', content: systemPrompt }, ...messages],
-        stream: false,
+        prompt,
+        stream: true,
       }),
       signal: AbortSignal.timeout(120000),
     });
-    const data = await response.json();
-    const text = data.message?.content || 'Ollama sem resposta.';
+
     ws.send(JSON.stringify({ type: 'start' }));
-    ws.send(JSON.stringify({ type: 'delta', content: text }));
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        try {
+          const parsed = JSON.parse(line);
+          if (parsed.response) {
+            ws.send(JSON.stringify({ type: 'delta', content: parsed.response }));
+          }
+        } catch {}
+      }
+    }
     ws.send(JSON.stringify({ type: 'done' }));
   } catch (err) {
     ws.send(JSON.stringify({ type: 'error', content: `Ollama offline: ${err.message}` }));

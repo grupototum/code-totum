@@ -167,21 +167,19 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
       // Fallback via Ollama quando WS não disponível
       setStatus('thinking');
       try {
-        const response = await fetch('/api/ollama/chat', {
+        const historyText = historyForApi.slice(-4).map(m =>
+          `${m.role === 'user' ? 'Usuário' : 'Assistente'}: ${m.content}`
+        ).join('\n');
+        const prompt = `Assistente código: React/TS/Node/IA. PT-BR. Direto.\n\n${historyText}\nUsuário: ${content}\nAssistente:`;
+
+        const response = await fetch('/api/ollama/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            model: 'mistral',
-            messages: [
-              { role: 'system', content: 'Assistente código: React/TS/Node/IA. PT-BR. Direto, sem preâmbulo.' },
-              ...historyForApi,
-              { role: 'user', content },
-            ],
-            stream: false,
-          }),
+          body: JSON.stringify({ model: 'mistral', prompt, stream: false }),
         });
-        const data = await response.json();
-        const replyContent = data.message?.content || data.error || 'Ollama offline. Verifique o serviço na VPS.';
+        const text = await response.text();
+        const data = JSON.parse(text);
+        const replyContent = data.response || data.error || 'Ollama offline. Verifique o serviço na VPS.';
         setMessages(prev => [
           ...prev,
           { id: Date.now().toString(), role: 'assistant', content: replyContent, type: 'text', timestamp: new Date() },
