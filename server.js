@@ -169,20 +169,17 @@ app.post('/api/ollama/generate', async (req, res) => {
       }
       res.end();
     } else {
-      // Non-streaming: acumula e retorna JSON
+      // Non-streaming: acumula buffer completo e retorna JSON
       const reader = r.body.getReader();
       const decoder = new TextDecoder();
-      let last = '';
+      let full = '';
       while (true) {
         const { done, value } = await reader.read();
         if (done) break;
-        const lines = decoder.decode(value).split('\n').filter(l => l.trim());
-        for (const line of lines) {
-          try { last = line; } catch {}
-        }
+        full += decoder.decode(value, { stream: true });
       }
-      const data = JSON.parse(last);
-      res.json(data);
+      full += decoder.decode(); // flush
+      res.json(JSON.parse(full.trim()));
     }
   } catch (err) {
     res.status(503).json({ error: 'Ollama offline', detail: err.message });
