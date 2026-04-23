@@ -14,6 +14,7 @@ const PORT = process.env.PORT || 3005;
 
 const OPENCODE_URL = process.env.OPENCODE_SERVER_URL || 'http://localhost:8090';
 const OPENCODE_WS  = OPENCODE_URL.replace('http', 'ws');
+const OLLAMA_URL   = process.env.OLLAMA_URL || 'http://localhost:11434';
 
 // ── Sessões em memória ──────────────────────────────────────────
 const sessions = new Map();
@@ -138,6 +139,46 @@ app.get('/api/sessions/:id', (req, res) => {
 app.delete('/api/sessions/:id', (req, res) => {
   sessions.delete(req.params.id);
   res.json({ ok: true });
+});
+
+// ── Ollama proxy ─────────────────────────────────────────────────
+app.post('/api/ollama/generate', async (req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(120000),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (err) {
+    res.status(503).json({ error: 'Ollama offline', detail: err.message });
+  }
+});
+
+app.post('/api/ollama/chat', async (req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(req.body),
+      signal: AbortSignal.timeout(120000),
+    });
+    const data = await r.json();
+    res.status(r.status).json(data);
+  } catch (err) {
+    res.status(503).json({ error: 'Ollama offline', detail: err.message });
+  }
+});
+
+app.get('/api/ollama/tags', async (req, res) => {
+  try {
+    const r = await fetch(`${OLLAMA_URL}/api/tags`, { signal: AbortSignal.timeout(5000) });
+    res.json(await r.json());
+  } catch (err) {
+    res.status(503).json({ models: [], error: 'Ollama offline' });
+  }
 });
 
 // ── Alexandria RAG ───────────────────────────────────────────────
