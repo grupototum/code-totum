@@ -144,21 +144,46 @@ app.delete('/api/sessions/:id', (req, res) => {
 // ── Ollama proxy ─────────────────────────────────────────────────
 app.post('/api/ollama/generate', async (req, res) => {
   try {
+    const isStream = req.body?.stream !== false;
     const r = await fetch(`${OLLAMA_URL}/api/generate`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(req.body),
       signal: AbortSignal.timeout(120000),
     });
-    res.status(r.status);
-    // Pipe direto — suporta stream:true e stream:false
-    const reader = r.body.getReader();
-    while (true) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      res.write(value);
+
+    if (!r.ok) {
+      return res.status(r.status).json({ error: 'Ollama error', detail: await r.text() });
     }
-    res.end();
+
+    if (isStream) {
+      // Streaming: pipe NDJSON direto para o cliente
+      res.setHeader('Content-Type', 'application/x-ndjson');
+      res.setHeader('Transfer-Encoding', 'chunked');
+      res.status(200);
+      const reader = r.body.getReader();
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        res.write(value);
+      }
+      res.end();
+    } else {
+      // Non-streaming: acumula e retorna JSON
+      const reader = r.body.getReader();
+      const decoder = new TextDecoder();
+      let last = '';
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        const lines = decoder.decode(value).split('\n').filter(l => l.trim());
+        for (const line of lines) {
+          try { last = line; } catch {}
+        }
+      }
+      const data = JSON.parse(last);
+      res.json(data);
+    }
   } catch (err) {
     res.status(503).json({ error: 'Ollama offline', detail: err.message });
   }
