@@ -24,14 +24,14 @@ interface UseOpenCodeOptions {
   context?: string;
 }
 
-const SERVER_URL = '';
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
+const WS_MAX_RETRIES = 2; // Após 2 falhas, assume modo Ollama
 
 export function useOpenCode(options: UseOpenCodeOptions = {}) {
   const { model = 'claude-3-5-sonnet-20241022', context = '' } = options;
 
   const [messages, setMessages] = useState<AgentMessage[]>([]);
-  const [status, setStatus] = useState<AgentStatus>('disconnected');
+  const [status, setStatus] = useState<AgentStatus>('idle');
   const [provider, setProvider] = useState<Provider>('unknown');
   const [isConnected, setIsConnected] = useState(false);
   const [currentPlan, setCurrentPlan] = useState<PlanStep[] | undefined>();
@@ -39,29 +39,45 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
 
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
+  const reconnectCount = useRef(0);
   const pendingContent = useRef('');
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
+    // Após N falhas, assume modo Ollama (sem WS)
+    if (reconnectCount.current >= WS_MAX_RETRIES) {
+      setIsConnected(true);
+      setProvider('claude-fallback');
+      setStatus('idle');
+      return;
+    }
+
     const ws = new WebSocket(`${WS_URL}/api/opencode/stream`);
     wsRef.current = ws;
 
     ws.onopen = () => {
+      reconnectCount.current = 0;
       setIsConnected(true);
       setStatus('idle');
     };
 
     ws.onclose = () => {
-      setIsConnected(false);
-      setStatus('disconnected');
-      // Reconecta após 3s
-      reconnectTimer.current = setTimeout(connect, 3000);
+      reconnectCount.current += 1;
+      if (reconnectCount.current < WS_MAX_RETRIES) {
+        setIsConnected(false);
+        setStatus('disconnected');
+        reconnectTimer.current = setTimeout(connect, 3000);
+      } else {
+        // Desiste do WS, opera via Ollama HTTP
+        setIsConnected(true);
+        setProvider('claude-fallback');
+        setStatus('idle');
+      }
     };
 
     ws.onerror = () => {
-      setIsConnected(false);
-      setStatus('error');
+      reconnectCount.current += 1;
     };
 
     ws.onmessage = (event) => {
