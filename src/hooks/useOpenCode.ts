@@ -164,25 +164,34 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
         context,
       }));
     } else {
-      // Fallback HTTP se WS não disponível
+      // Fallback via Ollama quando WS não disponível
       setStatus('thinking');
       try {
-        const response = await fetch(`${SERVER_URL}/api/claude`, {
+        const response = await fetch('/api/ollama/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            messages: [...historyForApi, { role: 'user', content }],
-            model,
+            model: 'mistral',
+            messages: [
+              { role: 'system', content: 'Assistente código: React/TS/Node/IA. PT-BR. Direto, sem preâmbulo.' },
+              ...historyForApi,
+              { role: 'user', content },
+            ],
+            stream: false,
           }),
         });
         const data = await response.json();
-        const replyContent = data.content?.[0]?.text || 'Sem resposta.';
+        const replyContent = data.message?.content || data.error || 'Ollama offline. Verifique o serviço na VPS.';
         setMessages(prev => [
           ...prev,
           { id: Date.now().toString(), role: 'assistant', content: replyContent, type: 'text', timestamp: new Date() },
         ]);
         setStatus('idle');
       } catch (err) {
+        setMessages(prev => [
+          ...prev,
+          { id: Date.now().toString(), role: 'assistant', content: 'Sem conexão com o servidor.', type: 'text', timestamp: new Date() },
+        ]);
         setStatus('error');
       }
     }

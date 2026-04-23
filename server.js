@@ -257,13 +257,13 @@ wss.on('connection', (clientWs) => {
 
 async function handleClaudeFallback(ws, msg) {
   const apiKey = process.env.VITE_CLAUDE_API_KEY;
-  if (!apiKey) {
-    ws.send(JSON.stringify({ type: 'error', content: 'Claude API key not configured' }));
-    return;
-  }
-
   const { messages = [], model = 'claude-3-5-sonnet-20241022', context = '' } = msg;
   const systemPrompt = `Assistente código: React/TS/Node/IA. PT-BR. Direto, sem preâmbulo.${context ? `\nContexto:\n${context}` : ''}`;
+
+  // Se não tem chave Claude, usa Ollama
+  if (!apiKey) {
+    return handleOllamaFallback(ws, messages, systemPrompt);
+  }
 
   ws.send(JSON.stringify({ type: 'thinking' }));
 
@@ -277,6 +277,11 @@ async function handleClaudeFallback(ws, msg) {
       },
       body: JSON.stringify({ model, max_tokens: 4096, stream: true, system: systemPrompt, messages }),
     });
+
+    // Se créditos esgotados, cai para Ollama
+    if (response.status === 529 || response.status === 402 || response.status === 429) {
+      return handleOllamaFallback(ws, messages, systemPrompt);
+    }
 
     ws.send(JSON.stringify({ type: 'start' }));
 
@@ -305,6 +310,29 @@ async function handleClaudeFallback(ws, msg) {
     ws.send(JSON.stringify({ type: 'done' }));
   } catch (err) {
     ws.send(JSON.stringify({ type: 'error', content: err.message }));
+  }
+}
+
+async function handleOllamaFallback(ws, messages, systemPrompt) {
+  ws.send(JSON.stringify({ type: 'thinking' }));
+  try {
+    const response = await fetch(`${OLLAMA_URL}/api/chat`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: process.env.VITE_OLLAMA_MODEL || 'mistral',
+        messages: [{ role: 'system', content: systemPrompt }, ...messages],
+        stream: false,
+      }),
+      signal: AbortSignal.timeout(120000),
+    });
+    const data = await response.json();
+    const text = data.message?.content || 'Ollama sem resposta.';
+    ws.send(JSON.stringify({ type: 'start' }));
+    ws.send(JSON.stringify({ type: 'delta', content: text }));
+    ws.send(JSON.stringify({ type: 'done' }));
+  } catch (err) {
+    ws.send(JSON.stringify({ type: 'error', content: `Ollama offline: ${err.message}` }));
   }
 }
 

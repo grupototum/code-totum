@@ -14,7 +14,7 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const model = options.model || 'claude-3-5-sonnet-20241022';
+  const ollamaModel = options.model || 'mistral';
 
   const sendMessage = async (userMessage: string) => {
     setLoading(true);
@@ -24,24 +24,30 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
       const newMessages = [...messages, { role: 'user' as const, content: userMessage }];
       setMessages(newMessages);
 
-      const response = await fetch('/api/claude', {
+      const response = await fetch('/api/ollama/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model, max_tokens: 1024, messages: newMessages }),
+        body: JSON.stringify({
+          model: ollamaModel,
+          messages: [
+            { role: 'system', content: 'Assistente código especialista: React, TypeScript, Node.js. PT-BR. Respostas diretas e técnicas.' },
+            ...newMessages,
+          ],
+          stream: false,
+        }),
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `Claude API error: ${response.statusText}`);
+        const err = await response.json().catch(() => ({}));
+        throw new Error(err.error || `Erro ${response.status}`);
       }
 
       const data = await response.json();
-      const assistantMessage = data.content[0].text;
+      const assistantMessage = data.message?.content || 'Sem resposta do modelo.';
 
       setMessages([...newMessages, { role: 'assistant', content: assistantMessage }]);
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      setError(errorMessage);
+      setError(err instanceof Error ? err.message : 'Erro desconhecido');
     } finally {
       setLoading(false);
     }
