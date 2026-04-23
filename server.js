@@ -263,7 +263,7 @@ async function handleClaudeFallback(ws, msg) {
   }
 
   const { messages = [], model = 'claude-3-5-sonnet-20241022', context = '' } = msg;
-  const systemPrompt = `Você é Totum Agent, um assistente de código especializado em React, TypeScript, Node.js e IA. Responda em português brasileiro. Seja objetivo e técnico.${context ? `\n\n## Contexto Alexandria:\n${context}` : ''}`;
+  const systemPrompt = `Assistente código: React/TS/Node/IA. PT-BR. Direto, sem preâmbulo.${context ? `\nContexto:\n${context}` : ''}`;
 
   ws.send(JSON.stringify({ type: 'thinking' }));
 
