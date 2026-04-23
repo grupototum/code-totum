@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 
 interface Message {
   role: 'user' | 'assistant';
@@ -9,12 +9,25 @@ interface UsClaudeOptions {
   model?: string;
 }
 
+const STORAGE_KEY = 'claudio-history';
+
+function loadHistory(): Message[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : [];
+  } catch { return []; }
+}
+
 export const useClaude = (options: UsClaudeOptions = {}) => {
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Message[]>(loadHistory);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const ollamaModel = options.model || 'mistral';
+
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
 
   const sendMessage = async (userMessage: string) => {
     setLoading(true);
@@ -57,6 +70,7 @@ export const useClaude = (options: UsClaudeOptions = {}) => {
   const clearMessages = () => {
     setMessages([]);
     setError(null);
+    localStorage.removeItem(STORAGE_KEY);
   };
 
   return { messages, loading, error, sendMessage, clearMessages };

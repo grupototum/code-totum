@@ -26,11 +26,20 @@ interface UseOpenCodeOptions {
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.host}`;
 const WS_MAX_RETRIES = 0; // Pula WS, usa HTTP direto (WS instável pelo Cloudflare)
+const STORAGE_KEY = 'totum-agent-history';
+
+function loadHistory(): AgentMessage[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return [];
+    return JSON.parse(raw).map((m: AgentMessage) => ({ ...m, timestamp: new Date(m.timestamp) }));
+  } catch { return []; }
+}
 
 export function useOpenCode(options: UseOpenCodeOptions = {}) {
   const { model = 'claude-3-5-sonnet-20241022', context = '' } = options;
 
-  const [messages, setMessages] = useState<AgentMessage[]>([]);
+  const [messages, setMessages] = useState<AgentMessage[]>(loadHistory);
   const [status, setStatus] = useState<AgentStatus>('idle');
   const [provider, setProvider] = useState<Provider>('unknown');
   const [isConnected, setIsConnected] = useState(false);
@@ -41,6 +50,11 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
   const reconnectCount = useRef(0);
   const pendingContent = useRef('');
+
+  // Persistir histórico
+  useEffect(() => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+  }, [messages]);
 
   const connect = useCallback(() => {
     if (wsRef.current?.readyState === WebSocket.OPEN) return;
@@ -274,6 +288,7 @@ export function useOpenCode(options: UseOpenCodeOptions = {}) {
     setModifiedFiles([]);
     setCurrentPlan(undefined);
     setStatus('idle');
+    localStorage.removeItem(STORAGE_KEY);
   }, []);
 
   const acceptChanges = useCallback(async (path: string) => {
